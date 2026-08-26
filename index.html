@@ -1,0 +1,1310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bloom</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#6E4C8C">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Bloom">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root{
+    --paper:#F5F1E6;
+    --card:#FFFDF8;
+    --ink:#241F2E;
+    --ink-soft:#6B6178;
+    --ink-faint:#A79FB0;
+    --line:#E2D9CB;
+    --follicular:#D98E3B;
+    --follicular-soft:#F3DDB4;
+    --luteal:#2A7A6F;
+    --luteal-soft:#CDE7E1;
+    --flow:#B5455B;
+    --flow-soft:#F4D3D9;
+    --plum:#6E4C8C;
+    --plum-soft:#E4D8EF;
+    --sage:#6E8C5C;
+    --sage-soft:#DCE7CF;
+    --gold:#C99A2E;
+    --gold-soft:#F3E4B8;
+    --radius:14px;
+    --grad: linear-gradient(120deg, #6E4C8C 0%, #B5455B 48%, #D98E3B 100%);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:'Inter',sans-serif;
+    padding-bottom:76px;
+    min-height:100vh;
+  }
+  .display{font-family:'Newsreader',serif;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  header{
+    padding:24px 18px 14px;
+    display:flex; align-items:baseline; justify-content:space-between;
+    position:relative;
+  }
+  header::after{
+    content:''; position:absolute; left:18px; right:18px; bottom:0; height:3px;
+    background:var(--grad); border-radius:3px; opacity:.85;
+  }
+  header h1{
+    font-family:'Newsreader',serif; font-weight:600; font-size:26px; margin:0;
+    letter-spacing:-0.02em;
+    background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  header .sub{font-size:11px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.08em; margin-top:2px;}
+  main{padding:0 16px 24px;}
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    padding:18px; margin-bottom:14px;
+  }
+  .card h2{
+    font-family:'Newsreader',serif; font-size:15px; font-weight:600; margin:0 0 12px 0;
+    color:var(--ink);
+  }
+  .eyebrow{
+    font-size:10.5px; text-transform:uppercase; letter-spacing:.09em; color:var(--ink-faint);
+    margin-bottom:4px; font-weight:500;
+  }
+  /* ---- nav ---- */
+  nav{
+    position:fixed; bottom:0; left:0; right:0; background:var(--card);
+    border-top:1px solid var(--line); display:flex; z-index:50;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  nav button{
+    flex:1; background:none; border:none; padding:12px 4px 10px; font-family:'Inter';
+    font-size:10.5px; letter-spacing:.03em; color:var(--ink-faint); display:flex; flex-direction:column;
+    align-items:center; gap:5px; cursor:pointer; position:relative;
+  }
+  nav button svg{width:20px; height:20px; opacity:.55; transition:opacity .15s;}
+  nav button.active{color:var(--ink); font-weight:600;}
+  nav button.active svg{opacity:1; color:var(--plum);}
+  nav button.active::before{
+    content:''; position:absolute; top:0; left:50%; transform:translateX(-50%);
+    width:22px; height:3px; border-radius:0 0 4px 4px; background:var(--grad);
+  }
+  /* ---- ring ---- */
+  .ring-wrap{display:flex; justify-content:center; padding:6px 0 10px;}
+  .ring-center-num{font-family:'JetBrains Mono',monospace; font-size:34px; font-weight:600;}
+  .ring-center-label{font-size:11px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.06em; margin-top:2px;}
+  .legend{display:flex; gap:16px; justify-content:center; margin-top:8px; flex-wrap:wrap;}
+  .legend span{font-size:11px; color:var(--ink-soft); display:flex; align-items:center; gap:5px;}
+  .dot{width:8px; height:8px; border-radius:50%; display:inline-block;}
+  .stat-row{display:flex; justify-content:space-between; align-items:baseline; padding:9px 0; border-bottom:1px solid var(--line);}
+  .stat-row:last-child{border-bottom:none;}
+  .stat-row .label{font-size:12.5px; color:var(--ink-soft);}
+  .stat-row .val{font-family:'JetBrains Mono',monospace; font-size:13.5px; font-weight:600;}
+  .trend-arrow{font-size:11px; margin-left:4px;}
+  .down{color:var(--luteal);}
+  .up{color:var(--flow);}
+  .conf-badge{
+    display:inline-block; font-size:10px; text-transform:uppercase; letter-spacing:.06em;
+    padding:3px 9px; border-radius:20px; font-weight:600;
+  }
+  .conf-low{background:var(--flow-soft); color:var(--flow);}
+  .conf-medium{background:var(--follicular-soft); color:var(--follicular);}
+  .conf-high{background:var(--luteal-soft); color:var(--luteal);}
+  .btn{
+    background:var(--ink); color:var(--paper); border:none; border-radius:10px;
+    padding:11px 16px; font-family:'Inter'; font-size:13px; font-weight:600; cursor:pointer;
+    width:100%;
+  }
+  .btn.secondary{background:transparent; color:var(--ink); border:1px solid var(--line);}
+  .btn.small{width:auto; padding:8px 13px; font-size:12px;}
+  /* ---- calendar ---- */
+  .cal-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
+  .cal-head .month{font-family:'Newsreader',serif; font-size:17px; font-weight:600;}
+  .cal-nav{background:none; border:1px solid var(--line); border-radius:8px; width:30px; height:30px; font-size:15px; color:var(--ink); cursor:pointer;}
+  .cal-grid{display:grid; grid-template-columns:repeat(7,1fr); gap:3px;}
+  .cal-dow{font-size:9.5px; text-align:center; color:var(--ink-faint); padding-bottom:4px; text-transform:uppercase;}
+  .cal-day{
+    aspect-ratio:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    border-radius:9px; font-size:12px; font-family:'JetBrains Mono',monospace; position:relative;
+    background:transparent; border:1px solid transparent; cursor:pointer; color:var(--ink);
+  }
+  .cal-day.empty{visibility:hidden;}
+  .cal-day.today{border-color:var(--ink);}
+  .cal-day .dots{position:absolute; bottom:4px; display:flex; gap:2px;}
+  .cal-day .dots .d{width:4px; height:4px; border-radius:50%;}
+  .cal-day.flow-day{background:var(--flow-soft);}
+  /* ---- sheet ---- */
+  .sheet-overlay{
+    position:fixed; inset:0; background:rgba(33,35,31,0.4); z-index:100; display:flex; align-items:flex-end;
+  }
+  .sheet{
+    background:var(--card); width:100%; max-height:88vh; overflow-y:auto; border-radius:20px 20px 0 0;
+    padding:18px 18px 26px;
+  }
+  .sheet h2{font-family:'Newsreader',serif; font-size:18px; margin:0 0 3px;}
+  .sheet .close{position:absolute; right:20px; top:16px; background:none; border:none; font-size:20px; color:var(--ink-soft); cursor:pointer;}
+  .field{margin-bottom:14px;}
+  .field label{display:block; font-size:11.5px; color:var(--ink-soft); margin-bottom:6px; text-transform:uppercase; letter-spacing:.04em;}
+  .field input[type=text], .field input[type=number], .field input[type=date], .field textarea, .field select{
+    width:100%; border:1px solid var(--line); border-radius:9px; padding:9px 11px; font-family:'Inter';
+    font-size:13.5px; background:#fff; color:var(--ink);
+  }
+  .field textarea{resize:vertical; min-height:50px;}
+  .chip-row{display:flex; gap:6px; flex-wrap:wrap;}
+  .chip{
+    border:1px solid var(--line); border-radius:20px; padding:7px 12px; font-size:12.5px; background:#fff;
+    color:var(--ink-soft); cursor:pointer;
+  }
+  .chip.sel{background:var(--ink); color:var(--paper); border-color:var(--ink);}
+  .checkline{display:flex; align-items:center; gap:9px; margin-bottom:14px;}
+  .checkline input{width:17px; height:17px;}
+  .checkline label{font-size:13px; color:var(--ink); text-transform:none; letter-spacing:0;}
+  /* ---- labs ---- */
+  .lab-card{border-left:3px solid var(--luteal);}
+  .lab-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px 14px; margin-top:8px;}
+  .lab-item{display:flex; justify-content:space-between; font-size:12.5px; border-bottom:1px dotted var(--line); padding:4px 0;}
+  .lab-item .v{font-family:'JetBrains Mono',monospace; font-weight:600;}
+  .flag{color:var(--flow);}
+  canvas{max-width:100%;}
+  /* ---- insights ---- */
+  .tip-card{
+    border-left:4px solid var(--plum); background:var(--card); border-radius:var(--radius);
+    padding:15px 16px; margin-bottom:11px; border-top:1px solid var(--line); border-right:1px solid var(--line); border-bottom:1px solid var(--line);
+  }
+  .tip-tag{
+    display:inline-block; font-size:9.5px; text-transform:uppercase; letter-spacing:.07em; font-weight:700;
+    padding:2px 8px; border-radius:20px; margin-bottom:7px;
+  }
+  .tip-card h3{font-family:'Newsreader',serif; font-size:15px; margin:0 0 4px; font-weight:600;}
+  .tip-card p{font-size:12.5px; color:var(--ink-soft); margin:0; line-height:1.5;}
+  .tip-diet{border-left-color:var(--follicular);}
+  .tip-diet .tip-tag{background:var(--follicular-soft); color:var(--follicular);}
+  .tip-exercise{border-left-color:var(--luteal);}
+  .tip-exercise .tip-tag{background:var(--luteal-soft); color:var(--luteal);}
+  .tip-supplements{border-left-color:var(--gold);}
+  .tip-supplements .tip-tag{background:var(--gold-soft); color:var(--gold);}
+  .tip-sleep{border-left-color:var(--plum);}
+  .tip-sleep .tip-tag{background:var(--plum-soft); color:var(--plum);}
+  .tip-cycle{border-left-color:var(--flow);}
+  .tip-cycle .tip-tag{background:var(--flow-soft); color:var(--flow);}
+  .tip-good{border-left-color:var(--sage);}
+  .tip-good .tip-tag{background:var(--sage-soft); color:var(--sage);}
+  /* ---- habits ---- */
+  .habit-today-row{
+    display:flex; align-items:center; gap:12px; padding:12px 4px; border-bottom:1px solid var(--line);
+    cursor:pointer;
+  }
+  .habit-today-row:last-child{border-bottom:none;}
+  .habit-check{
+    width:26px; height:26px; border-radius:50%; border:2px solid var(--line); flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; transition:all .15s;
+  }
+  .habit-check.done{background:var(--sage); border-color:var(--sage);}
+  .habit-check svg{width:14px; height:14px; stroke:var(--card); opacity:0; transition:opacity .1s;}
+  .habit-check.done svg{opacity:1;}
+  .habit-today-row .htext{flex:1;}
+  .habit-today-row .htitle{font-size:13.5px; font-weight:600; color:var(--ink);}
+  .habit-today-row .hhint{font-size:11px; color:var(--ink-faint); margin-top:1px;}
+  .habit-score{
+    text-align:center; margin-bottom:4px;
+  }
+  .habit-score .num{font-family:'JetBrains Mono',monospace; font-size:38px; font-weight:600;
+    background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent;}
+  .habit-score .lbl{font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft);}
+  .week-grid{display:grid; grid-template-columns:auto repeat(7,1fr); gap:5px; align-items:center; margin-top:4px;}
+  .week-grid .wg-head{font-size:9.5px; text-align:center; color:var(--ink-faint); text-transform:uppercase;}
+  .week-grid .wg-label{font-size:11px; color:var(--ink-soft); padding-right:6px;}
+  .week-grid .wg-cell{
+    aspect-ratio:1; border-radius:7px; background:var(--line); cursor:pointer; opacity:.5;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .week-grid .wg-cell.on{opacity:1;}
+  .week-grid .wg-cell.today{box-shadow:0 0 0 2px var(--ink) inset;}
+  .streak-row{display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px dotted var(--line); font-size:12.5px;}
+  .streak-row:last-child{border-bottom:none;}
+  .streak-row .sv{font-family:'JetBrains Mono',monospace; font-weight:600;}
+  .empty-state{text-align:center; padding:26px 10px; color:var(--ink-soft); font-size:13px;}
+  .empty-state .display{font-size:15px; color:var(--ink); margin-bottom:4px;}
+  .note{font-size:11.5px; color:var(--ink-faint); line-height:1.5; margin-top:4px;}
+  .two-col{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Bloom</h1>
+    <div class="sub" id="header-sub">loading…</div>
+  </div>
+  <div style="display:flex; align-items:center; gap:10px;">
+    <span class="conf-badge" id="conf-badge" style="display:none"></span>
+    <button id="settings-btn" style="background:none; border:1px solid var(--line); border-radius:9px; width:34px; height:34px; cursor:pointer; display:flex; align-items:center; justify-content:center; color:var(--ink-soft);">
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    </button>
+  </div>
+</header>
+
+<main id="app"></main>
+
+<nav>
+  <button data-tab="home" class="active">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+    Home
+  </button>
+  <button data-tab="calendar">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+    Calendar
+  </button>
+  <button data-tab="habits">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 13l4 4L19 7"/></svg>
+    Habits
+  </button>
+  <button data-tab="trends">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 19V9M11 19V4M18 19v-7"/></svg>
+    Trends
+  </button>
+  <button data-tab="labs">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 2v6L4 20a1 1 0 0 0 1 2h14a1 1 0 0 0 1-2L15 8V2M9 2h6"/></svg>
+    Labs
+  </button>
+  <button data-tab="insights">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2C8 2 6 5 6 8c0 2.5 1.5 3.8 2 5h8c.5-1.2 2-2.5 2-5 0-3-2-6-6-6z"/><path d="M9 21h6M10 18h4"/></svg>
+    Insights
+  </button>
+</nav>
+
+<script>
+/* ================= STATE & STORAGE ================= */
+let daylogs = {};      // { "YYYY-MM-DD": {periodStart:bool, flow, ewcm, bbt, acne, mood, cramps, clot, lh, notes} }
+let cycleStarts = [];  // [{date, note}]  -- manual bootstrap entries (no daily detail)
+let labs = [];         // [{date,label,tsh,hba1c,glucose,b12,ferritin,vitd,shbg,testo,freet,biot,dheas,prolactin,insulin}]
+let habits = {};       // { "YYYY-MM-DD": {protein:bool, walk:bool, strength:bool, cardio:bool, water:bool} }
+let activeTab = 'home';
+
+const HABIT_DEFS = [
+  {k:'protein', label:'Protein at breakfast', hint:'blunts the glucose swing all morning'},
+  {k:'walk',    label:'Walk after meals',     hint:'10–15 min, biggest single lever'},
+  {k:'strength',label:'Strength training',    hint:'raises insulin sensitivity over months'},
+  {k:'cardio',  label:'Cardio / walks',       hint:'any deliberate movement, separate from post-meal walks'},
+  {k:'water',   label:'Enough water',         hint:'~2–2.5L, supports everything else'},
+];
+let calMonth = new Date().getMonth();
+let calYear = new Date().getFullYear();
+let sheetOpen = null; // date string when day-log sheet open
+let labSheetOpen = false;
+let labDraft = {};
+let charts = {};
+let apiKey = '';
+let aiModel = 'claude-sonnet-5';
+let aiInsight = null;   // {text, generatedAt}
+let aiLoading = false;
+let settingsOpen = false;
+
+const todayStr = () => fmt(new Date());
+function fmt(d){ return d.toISOString().slice(0,10); }
+function diffDays(a,b){ return Math.round((new Date(b)-new Date(a))/86400000); }
+function niceDate(s){
+  const d = new Date(s+'T00:00:00');
+  return d.toLocaleDateString('en-US',{month:'short', day:'numeric'});
+}
+
+async function loadAll(){
+  try{ const v = localStorage.getItem('cyclelab_daylogs'); daylogs = v ? JSON.parse(v) : {}; }catch(e){ daylogs = {}; }
+  try{ const v = localStorage.getItem('cyclelab_cycleStarts'); cycleStarts = v ? JSON.parse(v) : []; }catch(e){ cycleStarts = []; }
+  try{ const v = localStorage.getItem('cyclelab_labs'); labs = v ? JSON.parse(v) : []; }catch(e){ labs = []; }
+  try{ const v = localStorage.getItem('cyclelab_habits'); habits = v ? JSON.parse(v) : {}; }catch(e){ habits = {}; }
+  try{ apiKey = localStorage.getItem('cyclelab_api_key') || ''; }catch(e){ apiKey = ''; }
+  try{ aiModel = localStorage.getItem('cyclelab_ai_model') || 'claude-sonnet-5'; }catch(e){ aiModel = 'claude-sonnet-5'; }
+  try{ const v = localStorage.getItem('cyclelab_ai_insights'); aiInsight = v ? JSON.parse(v) : null; }catch(e){ aiInsight = null; }
+  render();
+}
+
+async function saveDaylogs(){ try{ localStorage.setItem('cyclelab_daylogs', JSON.stringify(daylogs)); }catch(e){ console.error(e); } }
+async function saveCycleStarts(){ try{ localStorage.setItem('cyclelab_cycleStarts', JSON.stringify(cycleStarts)); }catch(e){ console.error(e); } }
+async function saveLabs(){ try{ localStorage.setItem('cyclelab_labs', JSON.stringify(labs)); }catch(e){ console.error(e); } }
+async function saveHabits(){ try{ localStorage.setItem('cyclelab_habits', JSON.stringify(habits)); }catch(e){ console.error(e); } }
+
+/* ================= EXPORT / IMPORT ================= */
+function exportAllData(){
+  const bundle = { daylogs, cycleStarts, labs, habits, exportedAt: new Date().toISOString() };
+  const blob = new Blob([JSON.stringify(bundle, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `bloom-backup-${todayStr()}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function importAllData(jsonText){
+  const bundle = JSON.parse(jsonText);
+  if(bundle.daylogs) daylogs = bundle.daylogs;
+  if(bundle.cycleStarts) cycleStarts = bundle.cycleStarts;
+  if(bundle.labs) labs = bundle.labs;
+  if(bundle.habits) habits = bundle.habits;
+  await saveDaylogs(); await saveCycleStarts(); await saveLabs(); await saveHabits();
+}
+
+/* ================= CYCLE ENGINE ================= */
+function getCycleStartDates(){
+  const set = new Set();
+  Object.keys(daylogs).forEach(d=>{ if(daylogs[d].periodStart) set.add(d); });
+  cycleStarts.forEach(c=> set.add(c.date));
+  return Array.from(set).sort();
+}
+
+function detectOvulation(start, end){
+  // end may be null (ongoing cycle) -> use today as bound
+  const bound = end || todayStr();
+  const days = Object.keys(daylogs).filter(d=> d>=start && d<bound).sort();
+  // 1) BBT sustained shift
+  const bbtDays = days.filter(d=> typeof daylogs[d].bbt === 'number');
+  for(let i=0;i<bbtDays.length;i++){
+    const baselineDays = bbtDays.slice(Math.max(0,i-6), i);
+    if(baselineDays.length < 3) continue;
+    const baseline = baselineDays.reduce((s,d)=>s+daylogs[d].bbt,0)/baselineDays.length;
+    const day1 = daylogs[bbtDays[i]].bbt;
+    if(day1 - baseline >= 0.3){
+      const next1 = bbtDays[i+1], next2 = bbtDays[i+2];
+      if(next1 && next2 && daylogs[next1].bbt-baseline>=0.25 && daylogs[next2].bbt-baseline>=0.25){
+        return bbtDays[i];
+      }
+    }
+  }
+  // 2) EWCM peak (last egg-white day before a drop)
+  let lastEW = null;
+  for(const d of days){
+    if(daylogs[d].ewcm === 'eggwhite') lastEW = d;
+  }
+  return lastEW;
+}
+
+function computeCycles(){
+  const starts = getCycleStartDates();
+  const cycles = [];
+  for(let i=0;i<starts.length;i++){
+    const s = starts[i];
+    const ns = starts[i+1] || null;
+    const length = ns ? diffDays(s,ns) : null;
+    const ovulation = detectOvulation(s, ns);
+    const follicularLen = ovulation ? diffDays(s, ovulation) : null;
+    const lutealLen = (ovulation && ns) ? diffDays(ovulation, ns) : null;
+    cycles.push({start:s, end:ns, length, ovulation, follicularLen, lutealLen, ongoing: !ns});
+  }
+  return cycles;
+}
+
+function weightedAvg(values){
+  // most recent weighted highest; values in chronological order
+  if(values.length===0) return null;
+  const recent = values.slice(-4);
+  let wsum=0, sum=0;
+  recent.forEach((v,i)=>{ const w=i+1; wsum+=w; sum+=v*w; });
+  return sum/wsum;
+}
+
+function getPredictions(){
+  const cycles = computeCycles();
+  const completed = cycles.filter(c=>!c.ongoing);
+  const lengths = completed.map(c=>c.length);
+  const follLens = completed.map(c=>c.follicularLen).filter(v=>v!=null);
+  const lutLens = completed.map(c=>c.lutealLen).filter(v=>v!=null);
+
+  const avgLen = weightedAvg(lengths);
+  const avgFoll = weightedAvg(follLens);
+  const avgLut = weightedAvg(lutLens) || 14;
+
+  const last = cycles[cycles.length-1] || null;
+  let cycleDay = null, phase = null, nextPeriod = null, nextOvulation = null;
+
+  if(last){
+    cycleDay = diffDays(last.start, todayStr()) + 1;
+    const estLen = avgLen || 30;
+    const estFoll = avgFoll || Math.max(estLen-14, 10);
+    nextPeriod = addDays(last.start, Math.round(estLen));
+    nextOvulation = addDays(last.start, Math.round(estFoll));
+    phase = last.ovulation ? (todayStr() < last.ovulation ? 'Follicular' : 'Luteal')
+                            : (cycleDay <= estFoll ? 'Follicular' : 'Luteal');
+  }
+
+  let confidence = 'low';
+  if(completed.length>=4) confidence='high';
+  else if(completed.length>=2) confidence='medium';
+
+  return {cycles, completed, avgLen, avgFoll, avgLut, cycleDay, phase, nextPeriod, nextOvulation, confidence, lengths, follLens};
+}
+
+function addDays(dateStr, n){
+  const d = new Date(dateStr+'T00:00:00');
+  d.setDate(d.getDate()+n);
+  return fmt(d);
+}
+
+/* ================= RENDER: SHELL ================= */
+function render(){
+  document.getElementById('header-sub').textContent =
+    activeTab==='home' ? 'Cycle overview' :
+    activeTab==='calendar' ? 'Daily log' :
+    activeTab==='habits' ? 'Daily habits' :
+    activeTab==='trends' ? 'Patterns over time' :
+    activeTab==='labs' ? 'Lab trends' : 'For you';
+
+  document.querySelectorAll('nav button').forEach(b=>{
+    b.classList.toggle('active', b.dataset.tab===activeTab);
+  });
+
+  const p = getPredictions();
+  const badge = document.getElementById('conf-badge');
+  if(activeTab==='home' && p.completed.length>0){
+    badge.style.display='inline-block';
+    badge.className = 'conf-badge conf-'+p.confidence;
+    badge.textContent = p.confidence+' confidence';
+  } else { badge.style.display='none'; }
+
+  const app = document.getElementById('app');
+  if(activeTab==='home') app.innerHTML = renderHome(p);
+  else if(activeTab==='calendar') app.innerHTML = renderCalendar();
+  else if(activeTab==='habits') app.innerHTML = renderHabits();
+  else if(activeTab==='trends') app.innerHTML = renderTrends(p);
+  else if(activeTab==='labs') app.innerHTML = renderLabs();
+  else if(activeTab==='insights') app.innerHTML = renderInsights(p);
+
+  attachHandlers(p);
+  if(activeTab==='trends') drawTrendCharts(p);
+  if(activeTab==='labs') drawLabSparklines();
+  if(sheetOpen) renderDaySheet(sheetOpen);
+  if(labSheetOpen) renderLabSheet();
+  if(settingsOpen) renderSettingsSheet();
+}
+
+/* ================= HOME ================= */
+function renderHome(p){
+  if(!p.cycles.length){
+    return `
+      <div class="card empty-state">
+        <div class="display">No cycle data yet</div>
+        <div>Log your first period start date to begin tracking.</div>
+        <div style="margin-top:14px;"><button class="btn small" id="add-first-cycle">Add a cycle start date</button></div>
+      </div>`;
+  }
+
+  const ring = drawRing(p);
+  const trendArrow = (arr)=>{
+    if(arr.length<2) return '';
+    const delta = arr[arr.length-1]-arr[0];
+    if(delta<0) return `<span class="trend-arrow down">▼ shortening</span>`;
+    if(delta>0) return `<span class="trend-arrow up">▲ lengthening</span>`;
+    return '';
+  };
+
+  return `
+  <div class="card">
+    <div class="ring-wrap">${ring}</div>
+    <div class="legend">
+      <span><i class="dot" style="background:var(--follicular)"></i>Follicular</span>
+      <span><i class="dot" style="background:var(--luteal)"></i>Luteal</span>
+      <span><i class="dot" style="background:var(--flow)"></i>Flow</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Predictions</h2>
+    <div class="stat-row"><span class="label">Predicted ovulation</span><span class="val">${p.nextOvulation?niceDate(p.nextOvulation):'—'}</span></div>
+    <div class="stat-row"><span class="label">Predicted next period</span><span class="val">${p.nextPeriod?niceDate(p.nextPeriod):'—'}</span></div>
+    <div class="stat-row"><span class="label">Current phase</span><span class="val">${p.phase||'—'}</span></div>
+    <div class="note">Estimated from your logged pattern — not diagnostic. Ovulation is inferred from BBT shifts or EWCM peak when logged, otherwise from average cycle length.</div>
+  </div>
+
+  <div class="card">
+    <h2>Trend snapshot</h2>
+    <div class="stat-row"><span class="label">Cycle length</span><span class="val">${p.lengths.join(' → ')||'—'} d ${trendArrow(p.lengths)}</span></div>
+    <div class="stat-row"><span class="label">Follicular phase</span><span class="val">${p.follLens.join(' → ')||'—'} d ${trendArrow(p.follLens)}</span></div>
+  </div>
+
+  <button class="btn" id="log-today-btn">Log today</button>
+  `;
+}
+
+function drawRing(p){
+  const cx=140, cy=140, r=105, stroke=16;
+  const len = p.avgLen || 30;
+  const foll = p.avgFoll || Math.max(len-14,10);
+  const cycleDay = p.cycleDay || 1;
+  const dayFrac = Math.min((cycleDay-1)/len, 0.999);
+  const follFrac = Math.min(foll/len, 0.98);
+
+  function arcPath(startFrac, endFrac){
+    const a0 = -90 + startFrac*360, a1 = -90 + endFrac*360;
+    const largeArc = (a1-a0) > 180 ? 1 : 0;
+    const p0 = polar(cx,cy,r,a0), p1 = polar(cx,cy,r,a1);
+    return `M ${p0.x} ${p0.y} A ${r} ${r} 0 ${largeArc} 1 ${p1.x} ${p1.y}`;
+  }
+  function polar(cx,cy,r,angleDeg){
+    const a = angleDeg*Math.PI/180;
+    return { x: cx + r*Math.cos(a), y: cy + r*Math.sin(a) };
+  }
+  const markerPos = polar(cx,cy,r, -90 + dayFrac*360);
+
+  // flow days as small ticks near start
+  const lastCycle = p.cycles[p.cycles.length-1];
+  let flowTicks = '';
+  if(lastCycle){
+    Object.keys(daylogs).filter(d=> d>=lastCycle.start && (!lastCycle.end || d<lastCycle.end) && daylogs[d].flow && daylogs[d].flow!=='none')
+      .forEach(d=>{
+        const frac = diffDays(lastCycle.start,d)/len;
+        const pt = polar(cx,cy,r+stroke/2+6,-90+frac*360);
+        flowTicks += `<circle cx="${pt.x}" cy="${pt.y}" r="2.6" fill="var(--flow)"/>`;
+      });
+  }
+
+  return `
+  <svg width="280" height="280" viewBox="0 0 280 280">
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--line)" stroke-width="${stroke}"/>
+    <path d="${arcPath(0, follFrac)}" fill="none" stroke="var(--follicular)" stroke-width="${stroke}" stroke-linecap="round"/>
+    <path d="${arcPath(follFrac, 1)}" fill="none" stroke="var(--luteal)" stroke-width="${stroke}" stroke-linecap="round"/>
+    ${flowTicks}
+    <circle cx="${markerPos.x}" cy="${markerPos.y}" r="7" fill="var(--card)" stroke="var(--ink)" stroke-width="2.5"/>
+    <text x="140" y="132" text-anchor="middle" class="mono" style="font-size:36px; font-weight:600; fill:var(--ink); font-family:'JetBrains Mono',monospace;">${cycleDay}</text>
+    <text x="140" y="156" text-anchor="middle" style="font-size:11px; fill:var(--ink-soft); letter-spacing:.06em; font-family:'Inter';">CYCLE DAY · ${p.phase?p.phase.toUpperCase():''}</text>
+  </svg>`;
+}
+
+/* ================= CALENDAR ================= */
+function renderCalendar(){
+  const first = new Date(calYear, calMonth, 1);
+  const startDow = first.getDay();
+  const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
+  const monthName = first.toLocaleDateString('en-US',{month:'long', year:'numeric'});
+  const p = getPredictions();
+  const lastCycle = p.cycles[p.cycles.length-1];
+
+  let cells = '';
+  const dows=['S','M','T','W','T','F','S'];
+  dows.forEach(d=> cells += `<div class="cal-dow">${d}</div>`);
+  for(let i=0;i<startDow;i++) cells += `<div class="cal-day empty"></div>`;
+  for(let day=1; day<=daysInMonth; day++){
+    const dateStr = fmt(new Date(calYear, calMonth, day));
+    const log = daylogs[dateStr];
+    const isToday = dateStr===todayStr();
+    const isFlow = log && log.flow && log.flow!=='none';
+    let dotsHtml = '';
+    if(log){
+      const dots=[];
+      if(log.ewcm==='eggwhite') dots.push('var(--follicular)');
+      if(typeof log.bbt==='number') dots.push('var(--luteal)');
+      if(log.acne && log.acne!=='none') dots.push('var(--flow)');
+      dotsHtml = `<div class="dots">${dots.slice(0,3).map(c=>`<span class="d" style="background:${c}"></span>`).join('')}</div>`;
+    }
+    cells += `<div class="cal-day ${isToday?'today':''} ${isFlow?'flow-day':''}" data-date="${dateStr}">${day}${dotsHtml}</div>`;
+  }
+
+  return `
+  <div class="card">
+    <div class="cal-head">
+      <button class="cal-nav" id="cal-prev">‹</button>
+      <span class="month">${monthName}</span>
+      <button class="cal-nav" id="cal-next">›</button>
+    </div>
+    <div class="cal-grid">${cells}</div>
+  </div>
+  <div class="card">
+    <h2>Bootstrap a past cycle</h2>
+    <div class="note" style="margin-bottom:10px;">Didn't log day-by-day? Add just the period start date to strengthen predictions.</div>
+    <div class="two-col">
+      <input type="date" id="bootstrap-date" style="border:1px solid var(--line); border-radius:9px; padding:9px; font-family:'Inter'; font-size:13px;">
+      <button class="btn small" id="add-bootstrap">Add cycle start</button>
+    </div>
+  </div>
+  `;
+}
+
+/* ================= HABITS ================= */
+function last7Dates(){
+  const arr = [];
+  for(let i=6;i>=0;i--){ arr.push(addDays(todayStr(), -i)); }
+  return arr;
+}
+
+function habitStreak(k){
+  let streak=0;
+  let d = todayStr();
+  while(habits[d] && habits[d][k]){
+    streak++;
+    d = addDays(d,-1);
+  }
+  return streak;
+}
+
+function renderHabits(){
+  const today = todayStr();
+  const todayHabits = habits[today] || {};
+  const doneCount = HABIT_DEFS.filter(h=>todayHabits[h.k]).length;
+  const week = last7Dates();
+  const dowLabels = week.map(d=> new Date(d+'T00:00:00').toLocaleDateString('en-US',{weekday:'narrow'}));
+
+  const todayRows = HABIT_DEFS.map(h=>`
+    <div class="habit-today-row" data-habit="${h.k}">
+      <div class="habit-check ${todayHabits[h.k]?'done':''}">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>
+      </div>
+      <div class="htext">
+        <div class="htitle">${h.label}</div>
+        <div class="hhint">${h.hint}</div>
+      </div>
+    </div>`).join('');
+
+  const weekHeader = dowLabels.map(d=>`<div class="wg-head">${d}</div>`).join('');
+  const weekRows = HABIT_DEFS.map(h=>{
+    const cells = week.map(d=>{
+      const on = habits[d] && habits[d][h.k];
+      const isToday = d===today;
+      return `<div class="wg-cell ${on?'on':''} ${isToday?'today':''}" data-wcell="${h.k}|${d}" style="background:${on?'var(--sage)':'var(--line)'}"></div>`;
+    }).join('');
+    return `<div class="wg-label">${h.label.split(' ')[0]}</div>${cells}`;
+  }).join('');
+
+  const streakRows = HABIT_DEFS.map(h=>{
+    const s = habitStreak(h.k);
+    return `<div class="streak-row"><span>${h.label}</span><span class="sv">${s} day${s===1?'':'s'}</span></div>`;
+  }).join('');
+
+  return `
+  <div class="card">
+    <div class="habit-score">
+      <div class="num">${doneCount}/5</div>
+      <div class="lbl">Done today</div>
+    </div>
+    ${todayRows}
+  </div>
+
+  <div class="card">
+    <h2>This week</h2>
+    <div class="week-grid">
+      <div></div>${weekHeader}
+      ${weekRows}
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Current streaks</h2>
+    ${streakRows}
+  </div>
+  `;
+}
+
+/* ================= DAY SHEET ================= */
+function renderDaySheet(dateStr){
+  const existing = document.getElementById('day-sheet-overlay');
+  if(existing) existing.remove();
+  const log = daylogs[dateStr] || {};
+  const overlay = document.createElement('div');
+  overlay.className='sheet-overlay';
+  overlay.id='day-sheet-overlay';
+  overlay.innerHTML = `
+    <div class="sheet" style="position:relative;">
+      <button class="close" id="sheet-close">&times;</button>
+      <h2>${niceDate(dateStr)}</h2>
+      <div class="note" style="margin-bottom:16px;">${new Date(dateStr+'T00:00:00').toLocaleDateString('en-US',{weekday:'long'})}</div>
+
+      <div class="checkline">
+        <input type="checkbox" id="f-periodstart" ${log.periodStart?'checked':''}>
+        <label for="f-periodstart">Cycle day 1 (period start)</label>
+      </div>
+
+      <div class="field">
+        <label>Flow</label>
+        <div class="chip-row" data-field="flow">
+          ${['none','spotting','light','medium','heavy'].map(v=>`<div class="chip ${log.flow===v?'sel':''}" data-val="${v}">${v}</div>`).join('')}
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Cervical mucus</label>
+        <div class="chip-row" data-field="ewcm">
+          ${['none','sticky','creamy','watery','eggwhite'].map(v=>`<div class="chip ${log.ewcm===v?'sel':''}" data-val="${v}">${v}</div>`).join('')}
+        </div>
+      </div>
+
+      <div class="field">
+        <label>BBT (°F)</label>
+        <input type="number" step="0.01" id="f-bbt" value="${log.bbt??''}" placeholder="e.g. 97.42">
+      </div>
+
+      <div class="field">
+        <label>Acne</label>
+        <div class="chip-row" data-field="acne">
+          ${['none','mild','moderate','severe'].map(v=>`<div class="chip ${log.acne===v?'sel':''}" data-val="${v}">${v}</div>`).join('')}
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Clotting</label>
+        <div class="chip-row" data-field="clot">
+          ${['none','light','heavy'].map(v=>`<div class="chip ${log.clot===v?'sel':''}" data-val="${v}">${v}</div>`).join('')}
+        </div>
+      </div>
+
+      <div class="field">
+        <label>LH strip</label>
+        <div class="chip-row" data-field="lh">
+          ${['not tested','negative','positive'].map(v=>`<div class="chip ${log.lh===v?'sel':''}" data-val="${v}">${v}</div>`).join('')}
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Mood</label>
+        <div class="chip-row" data-field="mood">
+          ${['good','low','anxious','irritable'].map(v=>`<div class="chip ${log.mood===v?'sel':''}" data-val="${v}">${v}</div>`).join('')}
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Notes</label>
+        <textarea id="f-notes" placeholder="anything else worth remembering">${log.notes||''}</textarea>
+      </div>
+
+      <button class="btn" id="sheet-save">Save entry</button>
+      ${Object.keys(log).length ? '<button class="btn secondary" id="sheet-delete" style="margin-top:8px;">Delete entry</button>' : ''}
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  overlay.querySelectorAll('.chip-row').forEach(row=>{
+    row.querySelectorAll('.chip').forEach(chip=>{
+      chip.addEventListener('click', ()=>{
+        row.querySelectorAll('.chip').forEach(c=>c.classList.remove('sel'));
+        chip.classList.add('sel');
+      });
+    });
+  });
+  overlay.querySelector('#sheet-close').addEventListener('click', ()=>{ sheetOpen=null; overlay.remove(); });
+  overlay.addEventListener('click', (e)=>{ if(e.target===overlay){ sheetOpen=null; overlay.remove(); } });
+
+  const delBtn = overlay.querySelector('#sheet-delete');
+  if(delBtn) delBtn.addEventListener('click', async ()=>{
+    delete daylogs[dateStr];
+    await saveDaylogs();
+    sheetOpen=null; overlay.remove(); render();
+  });
+
+  overlay.querySelector('#sheet-save').addEventListener('click', async ()=>{
+    const getSel = (field)=> {
+      const sel = overlay.querySelector(`.chip-row[data-field="${field}"] .chip.sel`);
+      return sel ? sel.dataset.val : undefined;
+    };
+    const entry = {
+      periodStart: overlay.querySelector('#f-periodstart').checked,
+      flow: getSel('flow'),
+      ewcm: getSel('ewcm'),
+      bbt: overlay.querySelector('#f-bbt').value ? parseFloat(overlay.querySelector('#f-bbt').value) : undefined,
+      acne: getSel('acne'),
+      clot: getSel('clot'),
+      lh: getSel('lh'),
+      mood: getSel('mood'),
+      notes: overlay.querySelector('#f-notes').value || undefined,
+    };
+    Object.keys(entry).forEach(k=> entry[k]===undefined && delete entry[k]);
+    daylogs[dateStr] = entry;
+    await saveDaylogs();
+    sheetOpen=null; overlay.remove(); render();
+  });
+}
+
+/* ================= TRENDS ================= */
+function renderTrends(p){
+  if(p.completed.length===0){
+    return `<div class="card empty-state"><div class="display">Not enough data yet</div><div>Complete at least one full cycle to see trends.</div></div>`;
+  }
+  return `
+  <div class="card">
+    <h2>Cycle length over time</h2>
+    <canvas id="chart-cyclelen" height="160"></canvas>
+  </div>
+  <div class="card">
+    <h2>Follicular vs. luteal phase</h2>
+    <canvas id="chart-phases" height="160"></canvas>
+    <div class="note">Only cycles with a detected ovulation marker (BBT shift or EWCM peak) show a follicular/luteal split.</div>
+  </div>
+  <div class="card">
+    <h2>Acne by cycle day</h2>
+    <canvas id="chart-acne" height="160"></canvas>
+  </div>
+  `;
+}
+
+function drawTrendCharts(p){
+  Object.values(charts).forEach(c=>c && c.destroy && c.destroy());
+  charts={};
+  const ink = '#21231F', soft='#65685C', line='#DDD8C7';
+  Chart.defaults.font.family = "'Inter', sans-serif";
+  Chart.defaults.color = soft;
+
+  const clEl = document.getElementById('chart-cyclelen');
+  if(clEl){
+    charts.cl = new Chart(clEl, {
+      type:'line',
+      data:{ labels: p.completed.map((c,i)=>'C'+(i+1)),
+        datasets:[{ data:p.completed.map(c=>c.length), borderColor:'#8E3B46', backgroundColor:'#8E3B46', tension:0.3, pointRadius:4 }]},
+      options:{ plugins:{legend:{display:false}}, scales:{ y:{grid:{color:line}}, x:{grid:{display:false}} } }
+    });
+  }
+  const phEl = document.getElementById('chart-phases');
+  if(phEl){
+    const withData = p.completed.filter(c=>c.follicularLen!=null);
+    charts.ph = new Chart(phEl, {
+      type:'bar',
+      data:{ labels: withData.map((c,i)=>niceDate(c.start)),
+        datasets:[
+          {label:'Follicular', data:withData.map(c=>c.follicularLen), backgroundColor:'#C6883A'},
+          {label:'Luteal', data:withData.map(c=>c.lutealLen||0), backgroundColor:'#2F6E68'}
+        ]},
+      options:{ plugins:{legend:{position:'bottom', labels:{boxWidth:10, font:{size:11}}}}, scales:{ x:{stacked:true, grid:{display:false}}, y:{stacked:true, grid:{color:line}} } }
+    });
+  }
+  const acEl = document.getElementById('chart-acne');
+  if(acEl){
+    const sevMap = {none:0, mild:1, moderate:2, severe:3};
+    const points = Object.keys(daylogs).filter(d=> daylogs[d].acne).sort().map(d=>{
+      const cyc = p.cycles.find(c=> d>=c.start && (!c.end || d<c.end));
+      const cd = cyc ? diffDays(cyc.start,d)+1 : null;
+      return cd? {x:cd, y:sevMap[daylogs[d].acne]} : null;
+    }).filter(Boolean);
+    charts.ac = new Chart(acEl, {
+      type:'scatter',
+      data:{ datasets:[{ data:points, backgroundColor:'#8E3B46' }]},
+      options:{ plugins:{legend:{display:false}},
+        scales:{ x:{title:{display:true,text:'Cycle day'}, grid:{color:line}},
+                 y:{min:0,max:3, ticks:{callback:v=>['None','Mild','Mod','Severe'][v]}, grid:{color:line}} } }
+    });
+  }
+}
+
+/* ================= SETTINGS ================= */
+function renderSettingsSheet(){
+  const existing = document.getElementById('settings-sheet-overlay');
+  if(existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.className='sheet-overlay';
+  overlay.id='settings-sheet-overlay';
+  overlay.innerHTML = `
+    <div class="sheet" style="position:relative;">
+      <button class="close" id="settings-close">&times;</button>
+      <h2>Settings</h2>
+      <div class="note" style="margin-bottom:16px;">Everything here stays on this device. Nothing is sent anywhere except the AI insights call below, and only when you tap that button.</div>
+
+      <div class="field">
+        <label>Anthropic API key</label>
+        <input type="text" id="s-apikey" value="${apiKey}" placeholder="sk-ant-...">
+        <div class="note" style="margin-top:6px;">From console.anthropic.com. Stored only in this browser's local storage — never in this file.</div>
+      </div>
+      <div class="field">
+        <label>Model</label>
+        <input type="text" id="s-model" value="${aiModel}">
+      </div>
+      <button class="btn" id="settings-save">Save</button>
+
+      <div style="height:1px; background:var(--line); margin:20px 0;"></div>
+
+      <h2 style="margin-bottom:8px;">Backup</h2>
+      <button class="btn secondary" id="export-btn" style="margin-bottom:10px;">Export all data (.json)</button>
+      <div class="field">
+        <label>Import data</label>
+        <textarea id="import-text" placeholder="Paste exported JSON here" style="min-height:80px;"></textarea>
+      </div>
+      <button class="btn secondary" id="import-btn">Import</button>
+
+      <div style="height:1px; background:var(--line); margin:20px 0;"></div>
+      <button class="btn secondary" id="clear-data-btn" style="border-color:var(--flow); color:var(--flow);">Clear all data on this device</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  overlay.querySelector('#settings-close').addEventListener('click', ()=>{ settingsOpen=false; overlay.remove(); });
+  overlay.addEventListener('click', (e)=>{ if(e.target===overlay){ settingsOpen=false; overlay.remove(); } });
+
+  overlay.querySelector('#settings-save').addEventListener('click', ()=>{
+    apiKey = overlay.querySelector('#s-apikey').value.trim();
+    aiModel = overlay.querySelector('#s-model').value.trim() || 'claude-sonnet-5';
+    localStorage.setItem('cyclelab_api_key', apiKey);
+    localStorage.setItem('cyclelab_ai_model', aiModel);
+    settingsOpen=false; overlay.remove(); render();
+  });
+
+  overlay.querySelector('#export-btn').addEventListener('click', exportAllData);
+
+  overlay.querySelector('#import-btn').addEventListener('click', async ()=>{
+    const txt = overlay.querySelector('#import-text').value;
+    if(!txt.trim()) return;
+    try{
+      await importAllData(txt);
+      settingsOpen=false; overlay.remove(); render();
+    }catch(e){ alert('Could not parse that JSON. Make sure it\'s an unedited export from this app.'); }
+  });
+
+  overlay.querySelector('#clear-data-btn').addEventListener('click', async ()=>{
+    if(!confirm('This deletes all cycle, lab, and habit data stored on this device. This cannot be undone. Continue?')) return;
+    localStorage.removeItem('cyclelab_daylogs');
+    localStorage.removeItem('cyclelab_cycleStarts');
+    localStorage.removeItem('cyclelab_labs');
+    localStorage.removeItem('cyclelab_habits');
+    localStorage.removeItem('cyclelab_ai_insights');
+    daylogs={}; cycleStarts=[]; labs=[]; habits={}; aiInsight=null;
+    settingsOpen=false; overlay.remove(); render();
+  });
+}
+
+/* ================= AI INSIGHTS (manual, on-demand) ================= */
+function buildAIContext(p){
+  const sorted = [...labs].sort((a,b)=> a.date<b.date?1:-1);
+  const lab = sorted[0] || null;
+  const today = todayStr();
+  const currentCycle = p.cycles[p.cycles.length-1] || null;
+
+  let cycleDayLogs = [];
+  let habitCompletion = {};
+  let daysInCycleSoFar = 0;
+
+  if(currentCycle){
+    const start = currentCycle.start;
+    const days = [];
+    for(let d=start; d<=today; d=addDays(d,1)) days.push(d);
+    daysInCycleSoFar = days.length;
+
+    cycleDayLogs = days
+      .filter(d=> daylogs[d] && Object.keys(daylogs[d]).length>0)
+      .map(d=> ({ date: d, cycleDay: diffDays(start,d)+1, ...daylogs[d] }));
+
+    HABIT_DEFS.forEach(h=>{
+      const doneCount = days.filter(d=> habits[d] && habits[d][h.k]).length;
+      habitCompletion[h.label] = `${doneCount}/${daysInCycleSoFar} days this cycle`;
+    });
+  }
+
+  return {
+    latestLab: lab,
+    homaIrApprox: lab && lab.glucose && lab.insulin ? +(lab.glucose*lab.insulin/405).toFixed(2) : null,
+    cycleLengthsRecentCompletedCycles: p.lengths,
+    follicularLengthsRecentCompletedCycles: p.follLens,
+    currentCycleStartDate: currentCycle ? currentCycle.start : null,
+    currentCycleDayNumber: p.cycleDay,
+    daysLoggedSoFarThisCycle: daysInCycleSoFar,
+    currentPhase: p.phase,
+    predictedNextPeriod: p.nextPeriod,
+    predictedOvulation: p.nextOvulation,
+    confidenceInPrediction: p.confidence,
+    habitCompletionThisCycle: habitCompletion,
+    dailyLogEntriesThisCycle: cycleDayLogs,
+  };
+}
+
+async function requestAIInsight(p){
+  if(!apiKey){ settingsOpen = true; render(); return; }
+  aiLoading = true; render();
+  const context = buildAIContext(p);
+  const systemPrompt = `You are a supportive, evidence-informed assistant helping someone track and manage PCOS (polycystic ovary syndrome) symptoms. You will be given: their latest lab values, their recent cycle-length pattern, and a day-by-day log of everything they've entered so far in their CURRENT cycle (flow, cervical mucus, BBT, acne, mood, notes, etc.), plus how consistently they've kept up 5 daily habits during this cycle. Base your suggestions primarily on what's actually in this current cycle's log — reference specific entries or patterns you see (e.g. "your acne logged on day X", "you've hit protein Y of Z days so far") rather than generic advice. Write 3-5 short, specific, prioritized suggestions covering diet, exercise, sleep, or things worth raising with their doctor. Be concrete, warm, and non-alarmist. Do not diagnose. Never invent lab values, dates, or log entries that weren't given to you — if the current cycle log is sparse, say so plainly and suggest what to log next rather than guessing. End with a one-line reminder that this isn't medical advice. Keep the whole response under 200 words. Use short paragraphs, no headers, no markdown bullets.`;
+
+  try{
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: aiModel || 'claude-sonnet-5',
+        max_tokens: 600,
+        system: systemPrompt,
+        messages: [{ role:'user', content: JSON.stringify(context, null, 2) }],
+      }),
+    });
+    const data = await response.json();
+    if(data.error){
+      aiInsight = { text: `Error: ${data.error.message || 'request failed'}. Check your API key in Settings.`, generatedAt: new Date().toISOString(), isError:true };
+    } else {
+      const text = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n').trim();
+      aiInsight = { text: text || 'No response text returned.', generatedAt: new Date().toISOString() };
+    }
+  }catch(e){
+    aiInsight = { text: `Could not reach the API (${e.message}). Check your network and API key.`, generatedAt: new Date().toISOString(), isError:true };
+  }
+  localStorage.setItem('cyclelab_ai_insights', JSON.stringify(aiInsight));
+  aiLoading = false;
+  render();
+}
+
+/* ================= INSIGHTS ================= */
+function generateTips(p){
+  const sorted = [...labs].sort((a,b)=> a.date<b.date?1:-1);
+  const lab = sorted[0] || {};
+  const homa = lab.glucose && lab.insulin ? (lab.glucose*lab.insulin/405) : null;
+  const tips = [];
+
+  // insulin resistance / low SHBG cluster
+  if((lab.shbg!=null && lab.shbg<30) || (homa!=null && homa>2)){
+    tips.push({cat:'diet', tag:'Diet', title:'Lead meals with protein', text:'Low SHBG and this insulin pattern point to insulin resistance. Protein or fiber before carbs, and a 10–15 min walk within an hour of eating, both blunt the glucose spike that drives it.'});
+    tips.push({cat:'exercise', tag:'Exercise', title:'Resistance train 2–3x/week', text:'Building muscle mass is one of the more reliable ways to raise insulin sensitivity over months, which in turn tends to lift SHBG.'});
+  }
+  // androgens
+  if((lab.freet!=null && lab.freet>3) || (lab.biot!=null && lab.biot>8)){
+    tips.push({cat:'supplements', tag:'Worth asking your doctor', title:'Myo-inositol', text:'Reasonably strong evidence for improving insulin sensitivity and androgen levels in PCOS. Worth raising at your next visit, especially alongside your cycle trend data.'});
+  }
+  // vitamin D
+  if(lab.vitd!=null && lab.vitd<30){
+    tips.push({cat:'supplements', tag:'Supplements', title:'Stay consistent with vitamin D', text:'Your level was low. Once repletion finishes, a daily maintenance dose plus some midday sunlight helps keep it from drifting back down.'});
+  }
+  // ferritin / B12
+  if((lab.ferritin!=null && lab.ferritin<50) || (lab.b12!=null && lab.b12<400)){
+    tips.push({cat:'diet', tag:'Nutrition', title:'Pair iron with vitamin C, apart from calcium', text:'Iron absorbs better with vitamin C and worse with calcium or coffee/tea at the same meal. Keep iron and your multivitamin on alternating days.'});
+  }
+  // prolactin
+  if(lab.prolactin!=null && lab.prolactin>25){
+    tips.push({cat:'sleep', tag:'Sleep & stress', title:'Protect sleep consistency', text:"Prolactin is sensitive to sleep timing and stress. A consistent wake time, even on weekends, tends to move it more than anything else you'll do this month."});
+  }
+  // long follicular phase
+  if(p.avgFoll && p.avgFoll>21){
+    tips.push({cat:'cycle', tag:'Cycle pattern', title:'Long follicular phase is your main lever', text:'Your irregularity is a long follicular phase, not delayed ovulation overall. The insulin-sensitivity habits above (post-meal walks, protein-first meals) are the ones most likely to shorten it further.'});
+  }
+  // positive trend reinforcement
+  if(p.lengths.length>=2 && p.lengths[p.lengths.length-1] < p.lengths[0]){
+    tips.push({cat:'good', tag:'Trending well', title:'Cycle length is shortening', text:`${p.lengths.join(' → ')} days across your logged cycles. Whatever combination you're doing is working — worth keeping consistent rather than changing multiple variables at once.`});
+  }
+  // fallback generic tips if nothing flagged yet
+  if(tips.length===0){
+    tips.push({cat:'diet', tag:'Diet', title:'Low-glycemic, protein-forward meals', text:'A solid default for PCOS: protein or fat with every meal, fiber from vegetables and whole grains, and minimizing refined carbs eaten alone.'});
+    tips.push({cat:'exercise', tag:'Exercise', title:'Move after meals', text:'Even a 10-minute walk after eating measurably reduces the post-meal glucose spike.'});
+  }
+  // flax / seed cycling reminder if acne logged recently
+  const recentAcne = Object.keys(daylogs).filter(d=> daylogs[d].acne && daylogs[d].acne!=='none').sort().slice(-1)[0];
+  if(recentAcne){
+    tips.push({cat:'diet', tag:'Diet', title:'Ground flaxseed daily', text:'1–2 tbsp of ground (not whole) flaxseed daily is a low-effort way to support estrogen metabolism and mild anti-androgen effect — pairs well with the acne pattern you\'ve been tracking.'});
+  }
+  return tips.slice(0,6);
+}
+
+function renderInsights(p){
+  const tips = generateTips(p);
+  const cards = tips.map(t=>`
+    <div class="tip-card tip-${t.cat}">
+      <span class="tip-tag">${t.tag}</span>
+      <h3>${t.title}</h3>
+      <p>${t.text}</p>
+    </div>`).join('');
+
+  const aiCard = `
+    <div class="card" style="border:1px solid var(--plum); background:var(--plum-soft);">
+      <h2 style="display:flex; align-items:center; justify-content:space-between;">
+        <span>AI take</span>
+        <span style="font-size:9.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--plum); font-weight:700;">On demand</span>
+      </h2>
+      ${aiInsight ? `
+        <p style="font-size:13px; line-height:1.6; color:var(--ink); margin:0 0 4px;">${aiInsight.text.replace(/\n/g,'<br>')}</p>
+        <div class="note">Generated ${new Date(aiInsight.generatedAt).toLocaleString()}</div>
+      ` : `<div class="note" style="margin-bottom:6px;">Nothing generated yet. Reads everything logged in your current cycle so far — runs only when you tap the button.</div>`}
+      <button class="btn" id="ai-insight-btn" style="margin-top:12px;" ${aiLoading?'disabled':''}>
+        ${aiLoading ? 'Thinking…' : (aiInsight ? 'Refresh AI take' : 'Get AI insight')}
+      </button>
+      ${!apiKey ? `<div class="note" style="margin-top:8px;">Needs an API key — tap the gear icon to add one.</div>` : ''}
+    </div>`;
+
+  return `
+    ${aiCard}
+    <div class="note" style="margin:14px 0;">Below: instant, rule-based tips from your latest lab panel and cycle pattern — no API call, always up to date.</div>
+    ${cards}
+  `;
+}
+
+/* ================= LABS ================= */
+const LAB_FIELDS = [
+  {k:'tsh', label:'TSH'}, {k:'hba1c', label:'HbA1c'}, {k:'glucose', label:'Glucose'},
+  {k:'b12', label:'Vit B12'}, {k:'ferritin', label:'Ferritin'}, {k:'vitd', label:'Vit D'},
+  {k:'shbg', label:'SHBG'}, {k:'testo', label:'Testosterone'}, {k:'freet', label:'Free T'},
+  {k:'biot', label:'Bioavail T'}, {k:'dheas', label:'DHEAS'}, {k:'prolactin', label:'Prolactin'},
+  {k:'insulin', label:'Insulin'}
+];
+
+function homaIr(entry){
+  if(entry.glucose && entry.insulin) return (entry.glucose*entry.insulin/405).toFixed(2);
+  return null;
+}
+
+function renderLabs(){
+  const sorted = [...labs].sort((a,b)=> a.date<b.date?1:-1);
+  const cards = sorted.map((entry, idx)=>{
+    const realIdx = labs.indexOf(entry);
+    const homa = homaIr(entry);
+    return `
+    <div class="card lab-card">
+      <div style="display:flex; justify-content:space-between; align-items:baseline;">
+        <h2 style="margin:0;">${entry.label||'Panel'}</h2>
+        <span class="note">${niceDate(entry.date)}</span>
+      </div>
+      <div class="lab-grid">
+        ${LAB_FIELDS.filter(f=>entry[f.k]!=null).map(f=>`<div class="lab-item"><span>${f.label}</span><span class="v">${entry[f.k]}</span></div>`).join('')}
+        ${homa ? `<div class="lab-item"><span>HOMA-IR (approx.)</span><span class="v flag">${homa}</span></div>` : ''}
+      </div>
+      <button class="btn secondary small" style="margin-top:12px;" data-editlab="${realIdx}">Edit</button>
+    </div>`;
+  }).join('');
+
+  let sparkHtml = '';
+  if(labs.length>=2){
+    sparkHtml = `
+    <div class="card">
+      <h2>Key markers over time</h2>
+      <canvas id="chart-shbg" height="120"></canvas>
+      <div class="note" style="margin:10px 0 4px;">SHBG</div>
+      <canvas id="chart-homa" height="120"></canvas>
+      <div class="note" style="margin:10px 0 4px;">HOMA-IR (approx., assumes fasting glucose)</div>
+    </div>`;
+  }
+
+  return `
+    <button class="btn" id="add-lab-btn" style="margin-bottom:14px;">Add lab panel</button>
+    ${sparkHtml}
+    ${cards}
+  `;
+}
+
+function drawLabSparklines(){
+  Object.values(charts).forEach(c=>c && c.destroy && c.destroy());
+  charts={};
+  const sorted = [...labs].sort((a,b)=> a.date<b.date?-1:1);
+  const shbgEl = document.getElementById('chart-shbg');
+  if(shbgEl){
+    charts.shbg = new Chart(shbgEl, {
+      type:'line',
+      data:{ labels: sorted.map(e=>niceDate(e.date)), datasets:[{data:sorted.map(e=>e.shbg??null), borderColor:'#2F6E68', backgroundColor:'#2F6E68', tension:0.3, spanGaps:true}]},
+      options:{ plugins:{legend:{display:false}}, scales:{ y:{grid:{color:'#DDD8C7'}}, x:{grid:{display:false}} } }
+    });
+  }
+  const homaEl = document.getElementById('chart-homa');
+  if(homaEl){
+    charts.homa = new Chart(homaEl, {
+      type:'line',
+      data:{ labels: sorted.map(e=>niceDate(e.date)), datasets:[{data:sorted.map(e=> e.glucose&&e.insulin ? +(e.glucose*e.insulin/405).toFixed(2) : null), borderColor:'#C6883A', backgroundColor:'#C6883A', tension:0.3, spanGaps:true}]},
+      options:{ plugins:{legend:{display:false}}, scales:{ y:{grid:{color:'#DDD8C7'}}, x:{grid:{display:false}} } }
+    });
+  }
+}
+
+function renderLabSheet(){
+  const existing = document.getElementById('lab-sheet-overlay');
+  if(existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.className='sheet-overlay';
+  overlay.id='lab-sheet-overlay';
+  const d = labDraft;
+  overlay.innerHTML = `
+    <div class="sheet" style="position:relative;">
+      <button class="close" id="labsheet-close">&times;</button>
+      <h2>${d._idx!=null ? 'Edit panel' : 'Add lab panel'}</h2>
+      <div class="field"><label>Label</label><input type="text" id="l-label" value="${d.label||''}" placeholder="e.g. 3-month recheck"></div>
+      <div class="field"><label>Date</label><input type="date" id="l-date" value="${d.date||todayStr()}"></div>
+      <div class="two-col">
+        ${LAB_FIELDS.map(f=>`<div class="field"><label>${f.label}</label><input type="number" step="0.01" id="l-${f.k}" value="${d[f.k]??''}"></div>`).join('')}
+      </div>
+      <button class="btn" id="labsheet-save">Save panel</button>
+      ${d._idx!=null ? '<button class="btn secondary" id="labsheet-delete" style="margin-top:8px;">Delete panel</button>' : ''}
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  overlay.querySelector('#labsheet-close').addEventListener('click', ()=>{ labSheetOpen=false; overlay.remove(); });
+  overlay.addEventListener('click', (e)=>{ if(e.target===overlay){ labSheetOpen=false; overlay.remove(); } });
+  const delBtn = overlay.querySelector('#labsheet-delete');
+  if(delBtn) delBtn.addEventListener('click', async ()=>{
+    labs.splice(d._idx,1); await saveLabs(); labSheetOpen=false; overlay.remove(); render();
+  });
+  overlay.querySelector('#labsheet-save').addEventListener('click', async ()=>{
+    const entry = { label: overlay.querySelector('#l-label').value || 'Panel', date: overlay.querySelector('#l-date').value || todayStr() };
+    LAB_FIELDS.forEach(f=>{
+      const v = overlay.querySelector('#l-'+f.k).value;
+      if(v!=='') entry[f.k] = parseFloat(v);
+    });
+    if(d._idx!=null) labs[d._idx] = entry; else labs.push(entry);
+    await saveLabs();
+    labSheetOpen=false; overlay.remove(); render();
+  });
+}
+
+/* ================= EVENT WIRING ================= */
+function attachHandlers(p){
+  document.querySelectorAll('nav button').forEach(b=>{
+    b.onclick = ()=>{ activeTab=b.dataset.tab; render(); };
+  });
+
+  const settingsBtn = document.getElementById('settings-btn');
+  if(settingsBtn) settingsBtn.onclick = ()=>{ settingsOpen=true; render(); };
+
+  const aiBtn = document.getElementById('ai-insight-btn');
+  if(aiBtn) aiBtn.onclick = ()=>{ requestAIInsight(p); };
+
+  const logToday = document.getElementById('log-today-btn');
+  if(logToday) logToday.onclick = ()=>{ sheetOpen = todayStr(); render(); };
+
+  const addFirst = document.getElementById('add-first-cycle');
+  if(addFirst) addFirst.onclick = ()=>{ activeTab='calendar'; render(); };
+
+  document.querySelectorAll('.cal-day[data-date]').forEach(el=>{
+    el.onclick = ()=>{ sheetOpen = el.dataset.date; render(); };
+  });
+  const prev = document.getElementById('cal-prev');
+  if(prev) prev.onclick = ()=>{ calMonth--; if(calMonth<0){calMonth=11; calYear--;} render(); };
+  const next = document.getElementById('cal-next');
+  if(next) next.onclick = ()=>{ calMonth++; if(calMonth>11){calMonth=0; calYear++;} render(); };
+
+  const addBoot = document.getElementById('add-bootstrap');
+  if(addBoot) addBoot.onclick = async ()=>{
+    const val = document.getElementById('bootstrap-date').value;
+    if(!val) return;
+    cycleStarts.push({date:val});
+    await saveCycleStarts();
+    render();
+  };
+
+  const addLabBtn = document.getElementById('add-lab-btn');
+  if(addLabBtn) addLabBtn.onclick = ()=>{ labDraft={date:todayStr()}; labSheetOpen=true; render(); };
+
+  document.querySelectorAll('[data-editlab]').forEach(el=>{
+    el.onclick = ()=>{
+      const idx = parseInt(el.dataset.editlab);
+      labDraft = {...labs[idx], _idx: idx};
+      labSheetOpen = true;
+      render();
+    };
+  });
+
+  document.querySelectorAll('.habit-today-row[data-habit]').forEach(el=>{
+    el.onclick = async ()=>{
+      const k = el.dataset.habit;
+      const d = todayStr();
+      habits[d] = habits[d] || {};
+      habits[d][k] = !habits[d][k];
+      await saveHabits();
+      render();
+    };
+  });
+
+  document.querySelectorAll('[data-wcell]').forEach(el=>{
+    el.onclick = async ()=>{
+      const [k, d] = el.dataset.wcell.split('|');
+      habits[d] = habits[d] || {};
+      habits[d][k] = !habits[d][k];
+      await saveHabits();
+      render();
+    };
+  });
+}
+
+loadAll();
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('service-worker.js').catch(e=> console.warn('SW registration failed', e));
+  });
+}
+</script>
+</body>
+</html>
