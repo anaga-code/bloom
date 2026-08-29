@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Bloom</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#6E4C8C">
@@ -14,6 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <style>
   :root{
     --paper:#F5F1E6;
@@ -41,7 +42,7 @@
   body{
     margin:0; background:var(--paper); color:var(--ink);
     font-family:'Inter',sans-serif;
-    padding-bottom:76px;
+    padding-bottom:96px;
     min-height:100vh;
   }
   .display{font-family:'Newsreader',serif;}
@@ -78,7 +79,7 @@
   nav{
     position:fixed; bottom:0; left:0; right:0; background:var(--card);
     border-top:1px solid var(--line); display:flex; z-index:50;
-    padding-bottom: env(safe-area-inset-bottom, 0);
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
   }
   nav button{
     flex:1; background:none; border:none; padding:12px 4px 10px; font-family:'Inter';
@@ -290,6 +291,7 @@ const HABIT_DEFS = [
   {k:'strength',label:'Strength training',    hint:'raises insulin sensitivity over months'},
   {k:'cardio',  label:'Cardio / walks',       hint:'any deliberate movement, separate from post-meal walks'},
   {k:'water',   label:'Enough water',         hint:'~2–2.5L, supports everything else'},
+  {k:'fast',    label:'Overnight fast',       hint:'12+ hrs between dinner and breakfast'},
 ];
 let calMonth = new Date().getMonth();
 let calYear = new Date().getFullYear();
@@ -302,9 +304,19 @@ let aiModel = 'claude-sonnet-5';
 let aiInsight = null;   // {text, generatedAt}
 let aiLoading = false;
 let settingsOpen = false;
+let pdfImport = { status:'idle', progress:'', extracted:null, error:null }; // status: idle|reading|parsing|review|error
+
+if(window.pdfjsLib){
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+}
 
 const todayStr = () => fmt(new Date());
-function fmt(d){ return d.toISOString().slice(0,10); }
+function fmt(d){
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
 function diffDays(a,b){ return Math.round((new Date(b)-new Date(a))/86400000); }
 function niceDate(s){
   const d = new Date(s+'T00:00:00');
@@ -617,7 +629,38 @@ function renderCalendar(){
       <button class="btn small" id="add-bootstrap">Add cycle start</button>
     </div>
   </div>
+  <div class="card">
+    <h2>Import from Apple Health</h2>
+    <div class="note" style="margin-bottom:10px;">Upload a Cycle Tracking PDF export. Reads the text layer only, entirely on your device — nothing is uploaded or sent anywhere. Pulls period start dates from the last 6 months. Symptoms aren't logged from the PDF; add those manually on the calendar.</div>
+    ${renderPdfImportBlock()}
+  </div>
   `;
+}
+
+function renderPdfImportBlock(){
+  if(pdfImport.status==='idle' || pdfImport.status==='error'){
+    return `
+      <input type="file" id="pdf-file-input" accept="application/pdf" style="width:100%; font-size:12.5px; margin-bottom:10px;">
+      <button class="btn small" id="parse-pdf-btn">Read PDF</button>
+      ${pdfImport.status==='error' ? `<div class="note" style="margin-top:8px; color:var(--flow);">${pdfImport.error}</div>` : ''}
+    `;
+  }
+  if(pdfImport.status==='reading'){
+    return `<div class="note">${pdfImport.progress || 'Working…'}</div>`;
+  }
+  if(pdfImport.status==='review'){
+    const cycles = pdfImport.extracted;
+    const excludedNote = pdfImport.excludedCount ? ` (${pdfImport.excludedCount} older cycle${pdfImport.excludedCount===1?'':'s'} skipped, outside the 6-month window)` : '';
+    return `
+      <div class="note" style="margin-bottom:10px;">Found <strong>${cycles.length}</strong> period start date${cycles.length===1?'':'s'} in the last 6 months${excludedNote}. Spot-check against the PDF before merging.</div>
+      <div style="max-height:220px; overflow-y:auto; border:1px solid var(--line); border-radius:9px; padding:8px 10px; margin-bottom:12px; font-size:12px;">
+        ${cycles.length ? cycles.slice().sort((a,b)=> a.start<b.start?-1:1).map(c=>`<div style="padding:4px 0; border-bottom:1px dotted var(--line);">${niceDate(c.start)} — period start${c.ongoing?' (ongoing)':''}${c.end?` · ${diffDays(c.start,c.end)} day cycle`:''}</div>`).join('') : '<div style="padding:4px 0;">Nothing found in that window.</div>'}
+      </div>
+      <button class="btn" id="merge-pdf-btn" style="margin-bottom:8px;" ${cycles.length===0?'disabled':''}>Mark on calendar</button>
+      <button class="btn secondary" id="discard-pdf-btn">Discard</button>
+    `;
+  }
+  return '';
 }
 
 /* ================= HABITS ================= */
@@ -673,7 +716,7 @@ function renderHabits(){
   return `
   <div class="card">
     <div class="habit-score">
-      <div class="num">${doneCount}/5</div>
+      <div class="num">${doneCount}/${HABIT_DEFS.length}</div>
       <div class="lbl">Done today</div>
     </div>
     ${todayRows}
@@ -785,7 +828,9 @@ function renderDaySheet(dateStr){
   const delBtn = overlay.querySelector('#sheet-delete');
   if(delBtn) delBtn.addEventListener('click', async ()=>{
     delete daylogs[dateStr];
+    cycleStarts = cycleStarts.filter(c=> c.date!==dateStr);
     await saveDaylogs();
+    await saveCycleStarts();
     sheetOpen=null; overlay.remove(); render();
   });
 
@@ -807,7 +852,12 @@ function renderDaySheet(dateStr){
     };
     Object.keys(entry).forEach(k=> entry[k]===undefined && delete entry[k]);
     daylogs[dateStr] = entry;
+    // the day log is now the source of truth for this date - drop any
+    // duplicate bootstrap entry so an unchecked/removed period start
+    // can't linger and skew predictions
+    cycleStarts = cycleStarts.filter(c=> c.date!==dateStr);
     await saveDaylogs();
+    await saveCycleStarts();
     sheetOpen=null; overlay.remove(); render();
   });
 }
@@ -1033,6 +1083,115 @@ async function requestAIInsight(p){
   localStorage.setItem('cyclelab_ai_insights', JSON.stringify(aiInsight));
   aiLoading = false;
   render();
+}
+
+/* ================= APPLE HEALTH PDF IMPORT (fully local, no API calls) ================= */
+const MONTH_MAP = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+
+function toISO(y,mIdx,d){
+  const dt = new Date(Date.UTC(y, mIdx, d));
+  return dt.toISOString().slice(0,10);
+}
+
+// Parses the "Cycle History" summary table (present on page 2 of Apple Health's
+// Cycle Tracking PDF export) using only the PDF's text layer. No page is rendered
+// to an image and nothing is sent anywhere - this all runs in the browser.
+function parseCycleHistoryTable(fullText){
+  const results = [];
+  const tokens = fullText.split('|').map(s=>s.trim()).filter(s=>s.length>0);
+  let currentYear = null;
+
+  const startedRe = /^Started\s+([A-Z][a-z]{2})\s+(\d{1,2})$/;
+  const rangeRe = /^([A-Z][a-z]{2})\s+(\d{1,2})\s*[–-]\s*([A-Z][a-z]{2})\s+(\d{1,2})$/;
+
+  tokens.forEach(tok=>{
+    if(/^\d{4}$/.test(tok)){ currentYear = parseInt(tok,10); return; }
+    if(currentYear==null) return;
+
+    let m = tok.match(startedRe);
+    if(m){
+      const mIdx = MONTH_MAP[m[1]];
+      if(mIdx!=null) results.push({ start: toISO(currentYear, mIdx, parseInt(m[2],10)), end: null, ongoing:true });
+      return;
+    }
+    m = tok.match(rangeRe);
+    if(m){
+      const startMIdx = MONTH_MAP[m[1]], endMIdx = MONTH_MAP[m[3]];
+      if(startMIdx==null || endMIdx==null) return;
+      // rows are grouped under the END date's year; if the start month is
+      // numerically after the end month, the cycle started the previous year
+      const endYear = currentYear;
+      const startYear = (startMIdx > endMIdx) ? currentYear-1 : currentYear;
+      results.push({
+        start: toISO(startYear, startMIdx, parseInt(m[2],10)),
+        end: toISO(endYear, endMIdx, parseInt(m[4],10)),
+        ongoing:false,
+      });
+    }
+  });
+  return results;
+}
+
+async function handlePdfImport(file){
+  pdfImport = { status:'reading', progress:'Reading PDF text…', extracted:null, error:null };
+  render();
+
+  try{
+    const arrayBuffer = await file.arrayBuffer();
+    const pdfDoc = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+
+    // page 2 carries the full "Cycle History" summary table in Apple's export;
+    // fall back to scanning every page's header if that table isn't found
+    let cycles = [];
+    if(pdfDoc.numPages >= 2){
+      const page2 = await pdfDoc.getPage(2);
+      const tc2 = await page2.getTextContent();
+      const text2 = tc2.items.map(it=>it.str).join('|');
+      cycles = parseCycleHistoryTable(text2);
+    }
+
+    if(cycles.length===0){
+      pdfImport.progress = 'Scanning page headers…';
+      render();
+      const seen = new Set();
+      for(let n=1; n<=pdfDoc.numPages; n++){
+        const page = await pdfDoc.getPage(n);
+        const tc = await page.getTextContent();
+        const full = tc.items.map(it=>it.str).join(' ').replace(/\s+/g,' ');
+        const m = full.match(/([A-Z][a-z]{2})\s+(\d{1,2})(?:,\s*(\d{4}))?\s*[–-]\s*([A-Z][a-z]{2})\s+(\d{1,2}),\s*(\d{4})/);
+        if(m){
+          const sMIdx = MONTH_MAP[m[1]], eMIdx = MONTH_MAP[m[4]], eYear = parseInt(m[6],10);
+          const sYear = m[3] ? parseInt(m[3],10) : (sMIdx>eMIdx ? eYear-1 : eYear);
+          const start = toISO(sYear, sMIdx, parseInt(m[2],10));
+          if(!seen.has(start)){ seen.add(start); cycles.push({start, end: toISO(eYear,eMIdx,parseInt(m[5],10)), ongoing:false}); }
+        }
+      }
+    }
+
+    // only the last 6 months, per your instruction
+    const sixMonthsAgo = addDays(todayStr(), -183);
+    const inWindow = cycles.filter(c=> c.start >= sixMonthsAgo);
+    const excludedCount = cycles.length - inWindow.length;
+
+    pdfImport = { status:'review', progress:'', extracted: inWindow, excludedCount, error:null };
+  }catch(e){
+    pdfImport = { status:'error', progress:'', extracted:null, error: e.message || 'Could not read that PDF.' };
+  }
+  render();
+}
+
+async function mergePdfImport(){
+  const cycles = pdfImport.extracted || [];
+  cycles.forEach(c=>{
+    daylogs[c.start] = daylogs[c.start] || {};
+    daylogs[c.start].periodStart = true;
+    if(!daylogs[c.start].flow) daylogs[c.start].flow = 'light';
+  });
+  await saveDaylogs();
+  const count = cycles.length;
+  pdfImport = { status:'idle', progress:'', extracted:null, error:null };
+  render();
+  alert(`Marked ${count} period start${count===1?'':'s'} on your calendar.`);
 }
 
 /* ================= INSIGHTS ================= */
@@ -1263,6 +1422,18 @@ function attachHandlers(p){
     await saveCycleStarts();
     render();
   };
+
+  const parsePdfBtn = document.getElementById('parse-pdf-btn');
+  if(parsePdfBtn) parsePdfBtn.onclick = ()=>{
+    const fileInput = document.getElementById('pdf-file-input');
+    const file = fileInput && fileInput.files[0];
+    if(!file){ pdfImport = {...pdfImport, status:'error', error:'Choose a PDF file first.'}; render(); return; }
+    handlePdfImport(file);
+  };
+  const mergePdfBtn = document.getElementById('merge-pdf-btn');
+  if(mergePdfBtn) mergePdfBtn.onclick = mergePdfImport;
+  const discardPdfBtn = document.getElementById('discard-pdf-btn');
+  if(discardPdfBtn) discardPdfBtn.onclick = ()=>{ pdfImport = {status:'idle', progress:'', extracted:null, error:null}; render(); };
 
   const addLabBtn = document.getElementById('add-lab-btn');
   if(addLabBtn) addLabBtn.onclick = ()=>{ labDraft={date:todayStr()}; labSheetOpen=true; render(); };
